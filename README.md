@@ -24,11 +24,43 @@ The bidirection syntax cleaves the world in two:
 
 The evaluator works in fairly standard *normalisation-by-evaluation* style. Terms are evaluated to higher-order values in a Kripke model, which may then be reified back to terms.
 
-Types themselves are chk terms, which are finite first-order data structures (i.e., made of potatoes). In order to power computation, we must map them to transfinite ordinals made of sugar, in a type defined by *induction-recursion*. The computational analogue of the amylase enzyme replaces first-order abstractions (which admit substitution) by the corresponding higher-order functions (replacing substitution by application). In the world of syntactic starch, T with (s : S) for x is not syntactically smaller than Pi S x.T, but once converted to semantic sugar, the limit ordinal Pi S T has inductive substructures S and T s for any s : S.
+Types themselves are chk terms, which are finite first-order data structures (i.e., made of potatoes). In order to power computation, we must map them to transfinite ordinals made of sugar, in a type defined by *induction-recursion*. The computational analogue of the amylase enzyme replaces first-order abstractions (which admit substitution) by the corresponding higher-order functions (replacing substitution by application). In the world of syntactic starch, `T` with `s : S` for `x` is not syntactically smaller than `Pi S x.T`, but once converted to semantic sugar, the limit ordinal *Pi S T* has inductive substructures *S* and *T s* for any *s : S*.
 
-This transfinite notion of semantic type allows us to define the Kripke model we need, with respect to context inclusion. A value is either a *stopped* term or a *going* radical&emdash;powered up by its type with all it needs for whatever eliminations may lie ahead and by Kripke semantics for any binders under which it must go.
+This transfinite notion of semantic type allows us to define the Kripke model we need, with respect to context inclusion. A value is either a *stopped* term or a *going* radical---powered up by its type with all it needs for whatever eliminations may lie ahead and by Kripke semantics for any binders under which it must go.
 
-The evaluators for both syntactic categories require an *environment* mapping free variables to *cells*. A *cell* is the dependent pair of a semantic type and a value of that type. The evaluator for chk terms takes a semantic type as its input, which is used to empower the semantic value which it yields. The evaluator for syn terms expects to find all the power it needs therein, and emits a cell. When the latter encounters a radical, t : T, it computes the semantic counterpart (i.e., the ordinal) of T, which it then feeds to the evaluator for t.
+The evaluators for both syntactic categories require an *environment* mapping free variables to *cells*. A *cell* is the dependent pair of a semantic type and a value of that type. The evaluator for chk terms takes a semantic type as its input, which is used to empower the semantic value which it yields. The evaluator for syn terms expects to find all the power it needs therein, and emits a cell. When the latter encounters a radical, `t : T`, it computes the semantic counterpart (i.e., the ordinal) of `T`, which it then feeds to the evaluator for `t`.
 
 The embedding from syn to chk requires the corresponding conversion of values from one type to another, which can happen if the source ordinal is at least as powerful as the target. If not, the source ordinal is certainly powerful enough to reify the value, so computation stops. Likewise, anytime we run out of ordinal power to actually compute with values, we reify them. That is, the consequence of having the *wrong* ordinal is just that we give up evaluating before we reach normal form. Bear in mind that some terms do not have a normal form.
 
+
+## how to define the type theory
+
+  1. Say how to check canonical constructions given a canonical type.
+  2. Say how to check an eliminator given the type of its target and synthesize the type of the elimination given an abstract value of its target.
+  3. Say how to compute the value of such an elimination, given a canonical replacement for the abstract target.
+  
+Crucially, all three of the above must be achieved by inspecting only the canonical outer layers of chk terms. The remaining rules (a.k.a., the *sine qua non*) are fixed *in saecula saeculorum*.
+
+```
+           T ~> T'    T' :> t
+pre      ----------------------
+           T :> t
+
+           e  <:  S    S = T
+embed    ---------------------
+           T  :>  e
+
+           e  <:  S    S ~> S'
+post     -----------------------
+           e  <:  S' 
+
+           * :> T    T :> t
+radical  --------------------
+           t : T  <:  T
+           
+           -| x : S
+var      ------------
+           x  <:  S
+```
+
+where `~>` is one-step reduction, `:>` is checking, `<:` is synthesis, and `-|` is context lookup.
