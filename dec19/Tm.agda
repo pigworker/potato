@@ -283,4 +283,59 @@ _~Tm?~_ : forall {n d}(t0 t1 : Tm n d) ->  (t0 ~ t1 -> Zero) + (t0 ~ t1)
 ((t0 :: T0) ~Tm?~ (t1 :: T1)) | tt , zt | ff , zT = ff , \ { r~ -> zT r~ }
 ((t0 :: T0) ~Tm?~ (.t0 :: .T0)) | tt , r~ | tt , r~ = tt , r~
 
+Cx : Nat -> Set
+Cx n = ([] su <= n) -> Tm n chk
+
+C0 : Cx []
+C0 = \ ()
+
+_,^_ : forall {n} -> Cx n -> Tm n chk -> Cx (n su)
+(G ,^ S) x = (G -push S) x ^Tm (iota no)
+
+LeTm LtTm : forall {m n} -> Tm m chk -> Tm n chk -> Set
+LeTm {m}{n} r t = LtTm r t + ((m ~ n) >< \ { r~ -> r ~ t })
+LtTm r (! _) = Zero
+LtTm r (s & t) = LeTm r s + LeTm r t
+LtTm {n = n} r (^ t) = Tm n chk * LeTm r t
+LtTm r (` _) = Zero
+
+cxUnder : forall {m n}(r : Tm m chk)(t : Tm n chk) -> LtTm r t -> Cx n -> Cx m
+cxUnder r (s & t)  (ff , ff , l)       G = cxUnder r s l G
+cxUnder r (.r & t) (ff , tt , r~ , r~) G = G
+cxUnder r (s & t)  (tt , ff , l)       G = cxUnder r t l G
+cxUnder r (s & .r) (tt , tt , r~ , r~) G = G
+cxUnder r (^ t)    (S , ff , l)        G = cxUnder r t l (G ,^ S)
+cxUnder r (^ .r)   (S , tt , r~ , r~)  G = G ,^ S
+
+Can : forall {n}(t : Tm n chk) -> Set
+Can (` _)   = Zero
+Can (! _)   = One
+Can (_ & _) = One
+Can (^ _)   = One
+
+data TmRec {n : Nat}(G : Cx n) : forall {d}(t : Tm n d) -> Set where
+  can  : forall (t : Tm n chk) -> Can t
+      -> (forall {m}(r : Tm m chk)(l : LtTm r t) -> TmRec (cxUnder r t l G) r)
+      -> TmRec G t
+  `_   : forall {e : Tm n syn} -> TmRec G e -> TmRec G (` e)
+  #_   : forall x -> TmRec G (# x)
+  _$_  : forall {e s} -> TmRec G e -> TmRec G s -> TmRec G (e $ s)
+  _::_ : forall {t T} -> TmRec G t -> TmRec G T -> TmRec G (t :: T)
+
+tmRec : forall {n d}(G : Cx n)(t : Tm n d) -> TmRec G t
+tmRec' : forall {n}(G : Cx n)(t : Tm n chk) ->
+         forall {m}(r : Tm m chk)(l : LtTm r t) -> TmRec (cxUnder r t l G) r
+tmRec G (! x)    = can _ _ (tmRec' G (! x))
+tmRec G (s & t)  = can _ _ (tmRec' G (s & t))
+tmRec G (^ t)    = can _ _ (tmRec' G (^ t)) 
+tmRec G (` e)    = ` tmRec G e
+tmRec G (# x)    = # x
+tmRec G (e $ s)  = tmRec G e $ tmRec G s
+tmRec G (t :: T) = tmRec G t :: tmRec G T
+tmRec' G (s & t) r  (ff , ff , l)       = tmRec' G s r l
+tmRec' G (s & t) .s (ff , tt , r~ , r~) = tmRec G s
+tmRec' G (s & t) r  (tt , ff , l)       = tmRec' G t r l
+tmRec' G (s & t) .t (tt , tt , r~ , r~) = tmRec G t
+tmRec' G (^ t)   r  (S , ff , l)        = tmRec' (G ,^ S) t r l
+tmRec' G (^ t)   .t (S , tt , r~ , r~)  = tmRec (G ,^ S) t
 

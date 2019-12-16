@@ -63,8 +63,18 @@ data _:-_ (G : Bwd Ty') : Ty' -> Set where
   mat' : forall {n T}
       -> (Atom -> G :- T)
       -> G :- Tm' n chk ->' Tm' n chk ->' T
-      -> G :- Tm' (n su) chk ->' T
+      -> G :- Tm' n chk *' (Tm' (n su) chk ->' T)
       -> G :- Tm' n chk ->' T
+
+  _/_  : forall {T}
+      -> G :- Aye'
+      -> G :- T
+      -> G :- T
+
+  chk' : forall {n}            -- this is a placeholder
+      -> G :- Tm' n chk
+      -> G :- Tm' n chk
+      -> G :- Aye'
 
   !_   : {n : Nat} -> Atom -> G :- Tm' n chk
   _&_  : {n : Nat} -> G :- Tm' n chk -> G :- Tm' n chk -> G :- Tm' n chk
@@ -85,9 +95,10 @@ cons' : forall {n G T}
 cons' f = mat' (\ _ -> naw') f naw'
 
 abst' : forall {n G T}
+      -> G :- Tm' n chk
       -> G :- Tm' (n su) chk ->' T
       -> G :- Tm' n chk ->' T
-abst' f = mat' (\ _ -> naw') naw' f
+abst' S f = mat' (\ _ -> naw') naw' (S ,' f)
 
 yer : forall {G T} -> Atom -> G :- T -> Atom -> G :- T
 yer a p b with a ~Atom?~ b
@@ -98,6 +109,9 @@ yer a p b | tt , _ = p
 En' : Nat -> Bwd Ty' -> Set
 En' n G = forall {T} -> T <- G -> n +[ T ]
 
+E0' : forall {n} -> En' n []
+E0' ()
+
 vecSb : forall {n p} m -> n +[ Vec' (Tm' p syn) m ] -> Sb m (n +B p)
 vecSb (m su) (sg , e) (i no) = vecSb m sg i
 vecSb (m su) (sg , e) (i su) = e
@@ -107,11 +121,19 @@ locSb (m su) sg (i no) = locSb m (\ j -> sg (j no)) i
 locSb (m su) sg (i su) = sg (none su)
 locSb [] sg i = # i
 
+locSbExt : forall {n p} m (sg0 sg1 : Sb m (n +B p)) ->
+           (forall i -> sg0 i ~ sg1 i) ->
+           forall j -> locSb {n}{p} m sg0 j ~ locSb {n}{p} m sg1 j
+locSbExt (m -, x) sg0 sg1 q (j -^ .x) = locSbExt m _ _ (\ i -> q (i no)) j
+locSbExt (m -, .<>) sg0 sg1 q (j -, .<>) = q (none su)
+locSbExt [] sg0 sg1 q j = r~
+
+
 [_]P : forall {n G T} -> G :- T -> En' n G -> One + (n +[ T ])
 match : forall {n m G T}
       -> (Atom -> G :- T)
       -> G :- Tm' m chk ->' Tm' m chk ->' T
-      -> G :- Tm' (m su) chk ->' T
+      -> G :- Tm' m chk *' (Tm' (m su) chk ->' T)
       -> En' n G -> Tm (n +B m) chk -> One + (n +[ T ])
 [ ?' i        ]P g = tt , g i
 [ \' t        ]P g = tt , \ s -> [ t ]P (g -push s)
@@ -122,6 +144,8 @@ match : forall {n m G T}
 [ naw'        ]P g = ff , <>
 [ sub' m t sg ]P g = [ t ]P g >>= \ t -> [ sg ]P g >>= \ sg -> tt , (t /Tm locSb m (vecSb m sg))
 [ mat' q c l  ]P g = tt , match q c l g
+[ c / t       ]P g = [ c ]P g >>= \ _ -> [ t ]P g
+[ chk' T t    ]P g = [ T ]P g >>= \ T -> [ t ]P g >>= \ t -> tt , <>
 [ ! a         ]P g = tt , ! a
 [ s & t       ]P g = [ s ]P g >>= \ s -> [ t ]P g >>= \ t -> tt , s & t
 [ ^ t         ]P g = [ t ]P g >>= \ t -> tt , ^ t
@@ -131,7 +155,7 @@ match : forall {n m G T}
 [ t :: T      ]P g = [ t ]P g >>= \ t -> [ T ]P g >>= \ T -> tt , t :: T
 match q c l g (! a)   = [ q a ]P g
 match q c l g (s & t) = [ c ]P g >>= \ c -> c s >>= \ d -> d t
-match q c l g (^ t)   = [ l ]P g >>= \ l -> l t
+match q c l g (^ t)   = [ l ]P g >>= \ (S , l) -> l t
 match q c l g (` e)   = ff , <>
 
 data MayLift {X Y}(L : X -> Y -> Set) : One + X -> One + Y -> Set where
@@ -217,8 +241,15 @@ record REL {n0 n1}(L : forall m {d} -> Tm (n0 +B m) d -> Tm (n1 +B m) d -> Set) 
     help (^ t0) u ul with abstInv ul
     ... | t1 , r~ , tl with [ l ]P ga0 | [ l ]P ga1 | lift l ga0 ga1 ga
     help (^ t0) .(^ t1) ul | t1 , r~ , tl | .(ff , <>) | l1 | no = no
-    help (^ t0) .(^ t1) ul | t1 , r~ , tl | .(tt , _) | .(tt , _) | ye ll = ll t0 t1 tl
+    help (^ t0) .(^ t1) ul | t1 , r~ , tl | .(tt , _) | .(tt , _) | ye (Sl , ll) = ll t0 t1 tl
     help (` s0) s1 sl = no
+  lift (c / p) ga0 ga1 ga with [ c ]P ga0 | [ c ]P ga1 | lift c ga0 ga1 ga
+  lift (c / p) ga0 ga1 ga | .(ff , <>) | c1 | no = no
+  lift (c / p) ga0 ga1 ga | .(tt , _) | .(tt , _) | ye x = lift p ga0 ga1 ga
+  lift (chk' T t) ga0 ga1 ga with [ T ]P ga0 | [ T ]P ga1 | lift T ga0 ga1 ga | [ t ]P ga0 | [ t ]P ga1 | lift t ga0 ga1 ga
+  lift (chk' T t) ga0 ga1 ga | .(ff , <>) | T1 | no | t0 | t1 | tl = no
+  lift (chk' T t) ga0 ga1 ga | .(tt , _) | .(tt , _) | ye _ | .(ff , <>) | t1 | no = no
+  lift (chk' T t) ga0 ga1 ga | .(tt , _) | .(tt , _) | ye Tl | .(tt , _) | .(tt , _) | ye tl = ye <>
   lift (! a) ga0 ga1 ga = ye (atomOk a)
   lift (s & t) ga0 ga1 ga with [ s ]P ga0 | [ s ]P ga1 | lift s ga0 ga1 ga | [ t ]P ga0 | [ t ]P ga1 | lift t ga0 ga1 ga
   lift (s & t) ga0 ga1 ga | .(ff , <>) | s1 | no | t0 | t1 | tl = no
@@ -243,6 +274,37 @@ record REL {n0 n1}(L : forall m {d} -> Tm (n0 +B m) d -> Tm (n1 +B m) d -> Set) 
 _+Sb_ : forall {n m} -> Sb n m -> forall p -> Sb (n +B p) (m +B p)
 sg +Sb (n su) = (sg +Sb n) +1Sb
 sg +Sb [] = sg
+
+locSbKem : forall {n0 n1} n m
+  (th : n0 <= n1)(sg0 : Sb m (n0 +B n))(sg1 : Sb m (n1 +B n)) ->
+  ((i : [] su <= m) -> sg1 i ~ (sg0 i ^Tm (th +th n))) ->
+  (x : Fi (n0 +B (n +B m))) ->
+  locSb m sg1 (x ^^ (th +th (n +B m))) ~ (locSb m sg0 x ^Tm (th +th n))
+locSbKem n (m su) th sg0 sg1 q (x -^ .<>) = locSbKem n m th _ _ (\ i -> q (i -^ <>)) x
+locSbKem n (m su) th sg0 sg1 q (x -, .<>) = q (none su)
+locSbKem n [] th sg0 sg1 q x = r~
+
+THN : forall {n m}(th : n <= m) -> REL \ p t0 t1 -> t1 ~ (t0 ^Tm (th +th p))
+REL.localSb (THN th) {n} {m} t0 _ r~ sg0 sg1 q = 
+  ((t0 ^Tm (th +th (n +B m))) /Tm locSb m sg1) ~[ thinSbst t0 _ _ >
+  (t0 /Tm (\ i -> locSb m sg1 (i ^^ (th +th (n +B m))))) ~[ extSb t0 _ _ (locSbKem n m th sg0 sg1 q) >
+  (t0 /Tm (\ i -> locSb m sg0 i ^Tm (th +th n))) < sbstThin t0 _ _ ]~
+  ((t0 /Tm locSb m sg0) ^Tm (th +th n)) [QED]
+
+REL.atomInv (THN th) r~ = r~
+REL.consInv (THN th) r~ = _ , r~ , r~ , r~
+REL.abstInv (THN th) r~ = _ , r~ , r~
+
+REL.atomOk (THN th) a = r~
+REL.consOk (THN th) r~ r~ = r~
+REL.abstOk (THN th) r~ = r~
+REL.embdOk (THN th) r~ = r~
+REL.loclOk (THN th) {n} x = #_ $~ (
+  (x ^^ thinr) < (x ^^_) $~ thinrLemma th n ]~
+  (x ^^ (thinr ^^ (th +th n))) ~[ thinAssoc _ _ _ >
+  (x ^^ thinr ^^ (th +th n)) [QED])
+REL.elimOk (THN th) r~ r~ = r~
+REL.radiOk (THN th) r~ r~ = r~
 
 locSbLem : forall {n0 n1} n m
   (sg : Sb n0 n1)(sg0 : Sb m (n0 +B n))(sg1 : Sb m (n1 +B n)) ->

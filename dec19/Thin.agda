@@ -46,7 +46,6 @@ module _ {X : Set} where
   thinr {m = m -, x} = thinr -, x
   thinr {m = []} = none
 
-
   infixl 20 _^^_
   _^^_ : forall {p n m} -> p <= n -> n <= m -> p <= m
   th        ^^ (ph -^ x) = th ^^ ph -^ x
@@ -92,6 +91,10 @@ module _ {X : Set} where
   _^^iota (th -^ x) rewrite _^^iota th = r~
   _^^iota (th -, x) rewrite _^^iota th = r~
   _^^iota [] = r~
+
+  thinrLemma : forall {n m}(th : n <= m) p -> (thinr {_}{p} ^^ (th +th p)) ~ thinr
+  thinrLemma th (p -, x) = (_-, _) $~ thinrLemma th p
+  thinrLemma th [] = none~ _ _
 
   infixl 17 _-push_
   _-push_ : forall {n y}{T : forall x -> x <- n -, y -> Set} ->
