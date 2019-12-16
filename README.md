@@ -79,8 +79,10 @@ In more conventional logical terms, the beta rules show how to simplify a cut `(
 
   1. **beta-upsilon-reduction is confluent**: that's true because beta-contraction for `(t : T) s` inspects only the *canonical* outer layers of `t`, `T` and `s`, thus *cannot* discover and disrupt any other beta- or upsilon-redex therein. I prove this so you don't have to. Takahashi's method works unproblematically: I define *parallel reduction* `=>` which lets you fire none, some or all of the redexes you can see in a term; I define the *development* of a term, `develop(-)`, which fires all its redexes; I show that if `t => t'` then `t' => develop(t)` (because beta-contraction is stable with respect to both substitution and `=>`)
   2. **computation preserves type**: that's true if beta-contraction is well typed. I will get around to proving this so you don't have to. Specifically, I prove that
+  
     * if `Ga |- T :> t` and `Ga =>* Ga'`, `T =>* T` and `t => t'`, then `Ga' |- T' :> t'`
     * if `Ga |- e <: S` and `Ga =>* Ga'` and `e => e'`, then there exists an `S'` such that `S =>* S' and `Ga' |- e' <: S'`
+    
     The essence of the proof is that, er, your typing rules only inspect the *canonical* outer layers of introduction forms and eliminators and are thus stable with respect to both substitution and `=>`.
     
     
