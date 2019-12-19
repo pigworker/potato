@@ -21,11 +21,6 @@ data Two : Set where ff tt : Two
 _+_ : Set -> Set -> Set
 S + T = Two >< \ { ff -> S ; tt -> T }
 
-infixr 1 _>>=_
-_>>=_ : forall {X Y} -> One + X -> (X -> One + Y) -> One + Y
-ff , <> >>= k = ff , <>
-tt , x  >>= k = k x
-
 data Star {X : Set}(R : X -> X -> Set)(x : X) : X -> Set where
   [] : Star R x x
   _,-_ : forall {y z} -> R x y -> Star R y z -> Star R x z
@@ -50,3 +45,19 @@ star F f rs = starB F (\ r -> f r ,- []) rs
 
 List : Set -> Set
 List X = Star {One} (\ _ _ -> X) <> <>
+
+data ListR {X}{Y}(R : X -> Y -> Set) : List X -> List Y -> Set where
+  [] : ListR R [] []
+  _,-_ : forall {x xs y ys} -> R x y -> ListR R xs ys -> ListR R (x ,- xs) (y ,- ys)
+
+_++R_ : forall {X Y}{R : X -> Y -> Set}
+         {xs0 ys0 xs1 ys1}
+       -> ListR R xs0 ys0
+       -> ListR R xs1 ys1
+       -> ListR R (xs0 ++ xs1) (ys0 ++ ys1)
+[] ++R ys = ys
+(x ,- xs) ++R ys = x ,- (xs ++R ys)
+          
+
+id : forall {l}{X : Set l} -> X -> X
+id x = x

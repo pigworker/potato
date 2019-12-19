@@ -4,14 +4,9 @@ open import Eq
 open import Tuple
 open import Thin
 open import Tm
+open import Meta
 open import Red
 
-Cx : Nat -> Set
-Cx n = (1 <= n) -> Tm n chk
-
-
-List : Set -> Set
-List X = Star {One} (\ _ _ -> X) <> <>
 
 All : forall {X} -> (X -> Set) -> List X -> Set
 All P [] = One
@@ -30,6 +25,17 @@ data Ju (n : Nat) : Set where
 
 infixr 20 _!-_ _>>_
 
+FormIntro' : Ty'
+FormIntro' = Chk' [] any *' Chk' [] (gdd ff) ->' Aye'
+
+module RULES
+  (formIntro : forall {G} -> G :- FormIntro')
+  (elimBeta  : forall {G} -> G :- ElimBeta')
+  where
+  open RED elimBeta
+    
+
+{-
 module RULES
   (introRules : forall {n}(T t : Tm n chk) -> One + List (Ju n))
   (elimRules : forall {n}(T s : Tm n chk) -> One + (List (Ju n) * (Tm n syn -> Tm n chk)))
@@ -156,3 +162,4 @@ KiplingElim (! PI & S & ^ T) s = tt , S >> s ,- [] , \ _ -> T /0 (s :: S)
 KiplingElim (! SG & S & ^ T) (! A0) = tt , [] , \ _ -> S
 KiplingElim (! SG & S & ^ T) (! A1) = tt , [] , \ e -> T /0 (e $ ! A0)
 KiplingElim T s = ff , <>
+-}

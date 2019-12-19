@@ -115,6 +115,28 @@ module _ {X : Set} where
   ((th -, x) ~Th?~ (.th -, x)) | tt , r~ = tt , r~
   [] ~Th?~ [] = tt , r~
 
+  assoc+B : forall xz yz zz -> (xz +B (yz +B zz)) ~ (xz +B yz +B zz)
+  assoc+B xz yz (zz -, x) = (_-, _) $~ assoc+B xz yz zz
+  assoc+B xz yz [] = r~
+
+  snocInj : forall {xz yz : Bwd X}{x y : X} -> _~_ {_}{Bwd X} (xz -, x) (yz -, y) -> (xz ~ yz) * (x ~ y)
+  snocInj r~ = r~ , r~
+
+  noCycle : (xz yz : Bwd X)(y : X) -> xz ~ (xz +B yz -, y) -> Zero
+  noCycle (xz -, x) yz y q with snocInj q
+  noCycle (xz -, x) (yz -, y) .x q | q' , r~ with noCycle xz (([] -, x) +B yz) y
+  ... | h rewrite assoc+B xz ([] -, x) yz = h q'
+  noCycle [] yz y ()
+
+  canSuffix : forall xz yz zz -> (xz +B yz) ~ (xz +B zz) -> yz ~ zz
+  canSuffix xz (yz -, y) (zz -, z) q with snocInj q
+  ... | qz , r~ = (_-, _) $~ canSuffix xz yz zz qz
+  canSuffix xz (yz -, y) [] q with noCycle xz yz y (sym q)
+  ... | ()
+  canSuffix xz [] (zz -, z) q with noCycle xz zz z q
+  ... | ()
+  canSuffix xz [] [] q = r~
+
 Nat = Bwd One
 pattern _no th = th -^ <>
 pattern _su n = n -, <>

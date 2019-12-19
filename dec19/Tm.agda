@@ -108,6 +108,10 @@ _+1Sb : forall {n m} -> Sb n m -> Sb (n su) (m su)
 (sg +1Sb) (x no) = sg x ^Tm (iota no)
 (sg +1Sb) (x su) = # (none su)
 
+_+Sb_ : forall {n m} -> Sb n m -> forall p -> Sb (n +B p) (m +B p)
+sg +Sb (n su) = (sg +Sb n) +1Sb
+sg +Sb [] = sg
+
 SBST : Action Sb
 Action._+1 SBST sg = sg +1Sb
 Action._#>_ SBST x sg = sg x
@@ -239,6 +243,19 @@ thSb t th =
   ((t ^Tm th) /Tm #_) ~[ thinSbst t th #_ >
   (t /Tm \ x -> # (x ^^ th)) [QED]
 
+locSb : forall {n p} m -> Sb m (n +B p) -> Sb (n +B (p +B m)) (n +B p)
+locSb (m su) sg (i no) = locSb m (\ j -> sg (j -^ _)) i
+locSb (m su) sg (i su) = sg (none su)
+locSb [] sg i = # i
+
+locSbExt : forall {n p} m (sg0 sg1 : Sb m (n +B p)) ->
+           (forall i -> sg0 i ~ sg1 i) ->
+           forall j -> locSb {n}{p} m sg0 j ~ locSb {n}{p} m sg1 j
+locSbExt (m -, x) sg0 sg1 q (j -^ .x) = locSbExt m _ _ (\ i -> q (i -^ _)) j
+locSbExt (m -, .<>) sg0 sg1 q (j -, .<>) = q (none su)
+locSbExt [] sg0 sg1 q j = r~
+
+
 _~Tm?~_ : forall {n d}(t0 t1 : Tm n d) ->  (t0 ~ t1 -> Zero) + (t0 ~ t1)
 (! a0) ~Tm?~ (! a1) with a0 ~Atom?~ a1
 ((! a0) ~Tm?~ (! a1)) | ff , z = ff , \ { r~ -> z r~ }
@@ -292,50 +309,83 @@ C0 = \ ()
 _,^_ : forall {n} -> Cx n -> Tm n chk -> Cx (n su)
 (G ,^ S) x = (G -push S) x ^Tm (iota no)
 
-LeTm LtTm : forall {m n} -> Tm m chk -> Tm n chk -> Set
-LeTm {m}{n} r t = LtTm r t + ((m ~ n) >< \ { r~ -> r ~ t })
-LtTm r (! _) = Zero
-LtTm r (s & t) = LeTm r s + LeTm r t
-LtTm {n = n} r (^ t) = Tm n chk * LeTm r t
-LtTm r (` _) = Zero
+data Gdd {n} : forall {un ud} -> Tm un ud -> {-strictly?-}Two -> Tm n chk -> Set where
+  hic : forall {t : Tm n chk} -> Gdd t ff t
+  car : forall {b un}{us ut : Tm un chk}{t : Tm n chk} -> Gdd us b t -> Gdd (us & ut) tt t
+  cdr : forall {b un}{us ut : Tm un chk}{t : Tm n chk} -> Gdd ut b t -> Gdd (us & ut) tt t
+  bod : forall {b un}{ut : Tm (un su) chk}{t : Tm n chk} -> (S : Tm un chk) -> Gdd ut b t -> Gdd (^ ut) tt t
+  arg : forall {b un ue}{us : Tm un chk}{t : Tm n chk} -> Gdd us b t -> Gdd (ue $ us) tt t
 
-cxUnder : forall {m n}(r : Tm m chk)(t : Tm n chk) -> LtTm r t -> Cx n -> Cx m
-cxUnder r (s & t)  (ff , ff , l)       G = cxUnder r s l G
-cxUnder r (.r & t) (ff , tt , r~ , r~) G = G
-cxUnder r (s & t)  (tt , ff , l)       G = cxUnder r t l G
-cxUnder r (s & .r) (tt , tt , r~ , r~) G = G
-cxUnder r (^ t)    (S , ff , l)        G = cxUnder r t l (G ,^ S)
-cxUnder r (^ .r)   (S , tt , r~ , r~)  G = G ,^ S
+_-car : forall {n un ud b}{u : Tm un ud}{s t : Tm n chk} -> Gdd u b (s & t) -> Gdd u tt s
+hic    -car = car hic
+car g   -car = car (g -car)
+cdr g   -car = cdr (g -car)
+bod S g -car = bod S (g -car)
+arg g   -car = arg (g -car)
 
-Can : forall {n}(t : Tm n chk) -> Set
-Can (` _)   = Zero
-Can (! _)   = One
-Can (_ & _) = One
-Can (^ _)   = One
+_-cdr : forall {n un ud b}{u : Tm un ud}{s t : Tm n chk} -> Gdd u b (s & t) -> Gdd u tt t
+hic    -cdr = cdr hic
+car g   -cdr = car (g -cdr)
+cdr g   -cdr = cdr (g -cdr)
+bod S g -cdr = bod S (g -cdr)
+arg g   -cdr = arg (g -cdr)
 
-data TmRec {n : Nat}(G : Cx n) : forall {d}(t : Tm n d) -> Set where
-  can  : forall (t : Tm n chk) -> Can t
-      -> (forall {m}(r : Tm m chk)(l : LtTm r t) -> TmRec (cxUnder r t l G) r)
-      -> TmRec G t
-  `_   : forall {e : Tm n syn} -> TmRec G e -> TmRec G (` e)
-  #_   : forall x -> TmRec G (# x)
-  _$_  : forall {e s} -> TmRec G e -> TmRec G s -> TmRec G (e $ s)
-  _::_ : forall {t T} -> TmRec G t -> TmRec G T -> TmRec G (t :: T)
+_-bod:_ : forall {n un ud b}{u : Tm un ud}{t : Tm (n su) chk} -> Gdd u b (^ t) -> Tm n chk -> Gdd u tt t
+hic -bod: S = bod S hic
+car g -bod: S = car (g -bod: S)
+cdr g -bod: S = cdr (g -bod: S)
+bod S' g -bod: S = bod S' (g -bod: S)
+arg g -bod: S = arg (g -bod: S)
 
-tmRec : forall {n d}(G : Cx n)(t : Tm n d) -> TmRec G t
-tmRec' : forall {n}(G : Cx n)(t : Tm n chk) ->
-         forall {m}(r : Tm m chk)(l : LtTm r t) -> TmRec (cxUnder r t l G) r
-tmRec G (! x)    = can _ _ (tmRec' G (! x))
-tmRec G (s & t)  = can _ _ (tmRec' G (s & t))
-tmRec G (^ t)    = can _ _ (tmRec' G (^ t)) 
-tmRec G (` e)    = ` tmRec G e
-tmRec G (# x)    = # x
-tmRec G (e $ s)  = tmRec G e $ tmRec G s
-tmRec G (t :: T) = tmRec G t :: tmRec G T
-tmRec' G (s & t) r  (ff , ff , l)       = tmRec' G s r l
-tmRec' G (s & t) .s (ff , tt , r~ , r~) = tmRec G s
-tmRec' G (s & t) r  (tt , ff , l)       = tmRec' G t r l
-tmRec' G (s & t) .t (tt , tt , r~ , r~) = tmRec G t
-tmRec' G (^ t)   r  (S , ff , l)        = tmRec' (G ,^ S) t r l
-tmRec' G (^ t)   .t (S , tt , r~ , r~)  = tmRec (G ,^ S) t
+_+Cx_ : forall {n un ud b}{u : Tm un ud}{t : Tm n chk} -> Cx un -> Gdd u b t -> Cx n
+G +Cx hic     = G
+G +Cx car g   = G +Cx g
+G +Cx cdr g   = G +Cx g
+G +Cx bod S g = (G ,^ S) +Cx g
+G +Cx arg g   = G +Cx g
+
+Can : forall {n} -> Tm n chk -> Set
+Can (` e) = Zero
+Can _     = One
+
+data TmRec : forall {n d} -> Tm n d -> Set where
+
+  can : forall {un}{u : Tm un chk}
+     -> Can u
+     -> (forall {n}{t : Tm n chk} -> Gdd u tt t -> TmRec t)
+     -> TmRec u
+
+  emb : forall {n}{e : Tm n syn}
+     -> TmRec e
+     -> TmRec (` e)
+
+  var : forall {n}(x : Fi n)
+     -> TmRec (# x)
+
+  eli : forall {n}{e : Tm n syn}{s : Tm n chk}
+     -> TmRec e
+     -> (forall {n}{t : Tm n chk} -> Gdd (e $ s) tt t -> TmRec t)
+     -> TmRec (e $ s)
+
+  rad : forall {n}{t T : Tm n chk}
+     -> TmRec t
+     -> TmRec T
+     -> TmRec (t :: T)
+
+memRec : forall {un ud n b}{u : Tm un ud}{t : Tm n chk} ->
+         TmRec u -> Gdd u b t -> TmRec t
+memRec u hic = u
+memRec (can _ k) (car g)   = k (car g)
+memRec (can _ k) (cdr g)   = k (cdr g)
+memRec (can _ k) (bod S g) = k (bod S g)
+memRec (eli _ k) (arg g)   = k (arg g)
+
+tmRec : forall {n d}(t : Tm n d) -> TmRec t
+tmRec (! a)    = can <> \ ()
+tmRec (s & t)  = can <> \ { (car g) -> memRec (tmRec s) g  ; (cdr g) -> memRec (tmRec t) g }
+tmRec (^ t)    = can <> \ { (bod S g) -> memRec (tmRec t) g }
+tmRec (` e)    = emb (tmRec e)
+tmRec (# x)    = var x
+tmRec (e $ s)  = eli (tmRec e) \ { (arg g) -> memRec (tmRec s) g }
+tmRec (t :: T) = rad (tmRec t) (tmRec T)
 

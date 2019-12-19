@@ -11,19 +11,19 @@ pattern _SU X = X -, _
 pattern _NO X = X -^ _
 
 ElimBeta' : Ty'
-ElimBeta' = Tm' [] chk -- target type
-        ->' Tm' [] chk -- eliminator
-        ->' (Tm' [] syn ->' Tm' [] chk)  -- result type in the abstract
-         *' (Tm' [] chk ->' Tm' [] chk)  -- result value, concretely
+ElimBeta' = Chk' [] any                    -- target type
+        ->' Chk' [] (gdd tt)               -- eliminator (s is guarded in e $ s)
+        ->' (Syn' [] ->' Chk' [] any)      -- result type in the abstract
+         *' (Chk' [] any ->' Chk' [] any)  -- result value, concretely
 
 module RED (eb' : forall {G} -> G :- ElimBeta') where
 
   Contract' : Ty'
-  Contract' = Tm' [] chk -- target type
-           *' Tm' [] chk -- eliminator
-           *' Tm' [] chk -- target intro
-          ->' Tm' [] chk -- result value
-           *' Tm' [] chk -- result type
+  Contract' = Chk' [] any      -- target type
+           *' Chk' [] (gdd tt) -- eliminator
+           *' Chk' [] any -- target intro
+          ->' Chk' [] any -- result value
+           *' Chk' [] any -- result type
 
   contract' : [] :- Contract'
   contract' = unc' (\'{-T-} unc' (\'{-s-} (\'{-t-} (unc' (\'{-R-} (\'{-r-} (
@@ -38,39 +38,53 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
     -> Tm n chk {-T-}
     -> Tm n chk {-s-}
     -> One + (Tm n chk{-t'-} * Tm n chk{-T-})
-  contract t T s = [ contract' ]P E0' >>= \ f -> f (T , s , t)
+  contract t T s = logOut (sem' ((t :: T) $ s) (E0' _) contract' >>= \ f -> f (T , (s , arg hic) , t))
 
-  contractStableSb : forall {n m}(sg : Sb n m)
-    -> (t : Tm n chk)(T : Tm n chk)(s : Tm n chk)
-    -> (t' T' : Tm n chk)
-    -> contract t T s ~ (tt , t' , T')
-    -> contract (t /Tm sg) (T /Tm sg) (s /Tm sg) ~ (tt , t' /Tm sg , T' /Tm sg)
-  contractStableSb {n}{m} sg t T s t' T' = help where
-    open REL (SUB sg)
-    help : contract t T s ~ (tt , t' , T')
-        -> contract (t /Tm sg) (T /Tm sg) (s /Tm sg) ~ (tt , t' /Tm sg , T' /Tm sg)
-    help = yelp ([ contract' ]P E0') ([ contract' ]P E0') (lift contract' E0' E0' (\ ())) where
-      yelp : (f0 : One + (n +[ Contract' ]))(f1 : One + (m +[ Contract' ]))(fl : MayLift (Lift Contract') f0 f1) ->
-             (f0 >>= \ f -> f (T , s , t)) ~ (tt , t' , T') ->
-             (f1 >>= \ f -> f (T /Tm sg , s /Tm sg , t /Tm sg)) ~ (tt , t' /Tm sg , T' /Tm sg)
-      yelp (tt , f0) (tt , f1) (ye fl) q with f0 (T , s , t) | f1 (T /Tm sg , s /Tm sg , t /Tm sg) | fl (T , s , t) _ (r~ , r~ , r~)
-      yelp (tt , f0) (tt , f1) (ye fl) r~ | .(tt , _ , _) | .(tt , _) | ye (r~ , r~) = r~
-    
+  module _ {un0}{un1}
+    (IpOp : forall {d} n -> Tm (un0 +B n) d -> Tm (un1 +B n) d -> Set)
+    (Subj : forall {d} n -> Tm (un0 +B n) d -> Tm (un1 +B n) d -> Set)
+    (t0 : Tm un0 chk)(t1 : Tm un1 chk)
+    (T0 : Tm un0 chk)(T1 : Tm un1 chk)
+    (s0 : Tm un0 chk)(s1 : Tm un1 chk)
+    (Stab : STABLE IpOp Subj ((t0 :: T0) $ s0) ((t1 :: T1) $ s1))
+    where
+    contractStable  
+       : IpOp [] t0 t1
+      -> IpOp [] T0 T1
+      -> Subj [] s0 s1
+      -> (v0 V0 : Tm un0 chk)
+      -> contract t0 T0 s0 ~ (tt , v0 , V0)
+      -> (_ * _) >< \ (v1 , V1) ->
+         contract t1 T1 s1 ~ (tt , v1 , V1) * IpOp [] v0 v1 * IpOp [] V0 V1
+    contractStable t T s v0 V0 q =
+      logOutLem (stable {[]}{Contract'}{E0' _}{E0' _}(\ ()) contract'
+                 >>>= \ fl -> fl {T0 , (s0 , arg hic) , t0}
+                                 {T1 , (s1 , arg hic) , t1}
+                                 (T , (s , <>) , t))
+        q
+      where open STABLE Stab
+
   contractStableTh : forall {n m}(th : n <= m)
     -> (t : Tm n chk)(T : Tm n chk)(s : Tm n chk)
     -> (t' T' : Tm n chk)
     -> contract t T s ~ (tt , t' , T')
     -> contract (t ^Tm th) (T ^Tm th) (s ^Tm th) ~ (tt , t' ^Tm th , T' ^Tm th)
-  contractStableTh {n}{m} th t T s t' T' = help where
-    open REL (THN th)
-    help : contract t T s ~ (tt , t' , T')
-        -> contract (t ^Tm th) (T ^Tm th) (s ^Tm th) ~ (tt , t' ^Tm th , T' ^Tm th)
-    help = yelp ([ contract' ]P E0') ([ contract' ]P E0') (lift contract' E0' E0' (\ ())) where
-      yelp : (f0 : One + (n +[ Contract' ]))(f1 : One + (m +[ Contract' ]))(fl : MayLift (Lift Contract') f0 f1) ->
-             (f0 >>= \ f -> f (T , s , t)) ~ (tt , t' , T') ->
-             (f1 >>= \ f -> f (T ^Tm th , s ^Tm th , t ^Tm th)) ~ (tt , t' ^Tm th , T' ^Tm th)
-      yelp (tt , f0) (tt , f1) (ye fl) q with f0 (T , s , t) | f1 (T ^Tm th , s ^Tm th , t ^Tm th) | fl (T , s , t) _ (r~ , r~ , r~)
-      yelp (tt , f0) (tt , f1) (ye fl) r~ | .(tt , _ , _) | .(tt , _) | ye (r~ , r~) = r~
+  contractStableTh th t T s t' T' q
+    with contractStable (THN th) (THN th) t _ T _ s _
+           (STABLETHN th ((t :: T) $ s))
+           r~ r~ r~ _ _ q
+  ... | _ , q' , r~ , r~ = q'    
+    
+  contractStableSb : forall {n m}(sg : Sb n m)
+    -> (t : Tm n chk)(T : Tm n chk)(s : Tm n chk)
+    -> (t' T' : Tm n chk)
+    -> contract t T s ~ (tt , t' , T')
+    -> contract (t /Tm sg) (T /Tm sg) (s /Tm sg) ~ (tt , t' /Tm sg , T' /Tm sg)
+  contractStableSb sg t T s t' T' q
+    with contractStable (SUB sg) (SUB sg) t _ T _ s _
+           (STABLESUB sg ((t :: T) $ s))
+           r~ r~ r~ _ _ q
+  ... | _ , q' , r~ , r~ = q'    
     
   data _=>_ {n} : forall {d} -> Tm n d -> Tm n d -> Set where
     beta : forall {t t' T T' s s' r r' R R'} ->
@@ -119,24 +133,28 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
   parSb (e $ s) sg0 sg1 sg = parSb e sg0 sg1 sg $ parSb s sg0 sg1 sg
   parSb (t :: T) sg0 sg1 sg = parSb t sg0 sg1 sg :: parSb T sg0 sg1 sg
 
-  PAR : forall {n} -> REL \ m -> _=>_ {n +B m}
-  REL.localSb (PAR {n}) {p} {m} t0 t1 t sg0 sg1 r =
-    parSb t (locSb m sg0) (locSb m sg1) (help n p m sg0 sg1 r) where
-    help : forall n p m (sg0 sg1 : Sb m (n +B p))(r : forall i -> sg0 i => sg1 i) ->
+  PAR : forall {n}{d}{u0 u1 : Tm n d} -> u0 => u1 ->
+        STABLE (\ m -> _=>_ {n +B m}) (\ m -> _=>_ {n +B m}) u0 u1
+  STABLE.atomIO (PAR u) (! a) = r~
+  STABLE.consIO (PAR u) (s & t) = _ , r~ , s , t
+  STABLE.abstIO (PAR u) (^ t) = _ , r~ , t
+  STABLE.consSu (PAR u) (s & t) = _ , r~ , s , t
+  STABLE.abstSu (PAR u) (^ t) = _ , r~ , t
+  STABLE.loclSb (PAR {n} u) {p} m t {sg0}{sg1} sg =
+    parSb t (locSb m sg0) (locSb m sg1) (help n p m sg0 sg1 sg) where
+    help : forall n p m (sg0 sg1 : Sb m (n +B p))(sg : forall i -> sg0 i => sg1 i) ->
            forall i -> locSb {n}{p} m sg0 i => locSb {n}{p} m sg1 i
-    help n p (m -, x) sg0 sg1 r (i -^ .x) = help n p m _ _ (\ i -> r (i -^ _)) i
-    help n p (m -, .<>) sg0 sg1 r (i -, .<>) = r (none su)
+    help n p (m -, x) sg0 sg1 sg (i -^ .x) = help n p m _ _ (\ i -> sg (i -^ _)) i
+    help n p (m -, .<>) sg0 sg1 sg (i -, .<>) = sg (none su)
     help n p [] sg0 sg1 r i = # i
-  REL.atomInv PAR (! a) = r~
-  REL.consInv PAR (s & t) = _ , r~ , s , t
-  REL.abstInv PAR (^ t) = _ , r~ , t
-  REL.atomOk PAR = !_
-  REL.consOk PAR = _&_
-  REL.abstOk PAR = ^_
-  REL.embdOk PAR = `_
-  REL.loclOk PAR x = # (x ^^ thinr)
-  REL.elimOk PAR = _$_
-  REL.radiOk PAR = _::_
+  STABLE.suIpOp (PAR u) = id
+  STABLE.atomOk (PAR u) a = ! a
+  STABLE.consOk (PAR u) s t = s & t
+  STABLE.abstOk (PAR u) t = ^ t
+  STABLE.embdOk (PAR u) e = ` e
+  STABLE.loclOk (PAR u) x = # _
+  STABLE.elimOk (PAR u) e s = e $ s
+  STABLE.radiOk (PAR u) t T = t :: T
 
   contractStablePar : forall {n}
     -> {t0 t1 : Tm n chk} -> t0 => t1
@@ -145,19 +163,11 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
     -> {t'0 T'0 : Tm n chk}
     -> contract t0 T0 s0 ~ (tt , t'0 , T'0)
     -> (_ * _) >< \ (t'1 , T'1)
-    -> (t'0 => t'1) * (T'0 => T'1) * contract t1 T1 s1 ~ (tt , t'1 , T'1)
-  contractStablePar {n} {t0}{t1} t {T0}{T1} T {s0}{s1} s {t'0}{T'0} = help where
-    open REL (PAR {n})
-    help : contract t0 T0 s0 ~ (tt , t'0 , T'0)
-        -> (_ * _) >< \ (t'1 , T'1)
-        -> (t'0 => t'1) * (T'0 => T'1) * contract t1 T1 s1 ~ (tt , t'1 , T'1)
-    help = yelp ([ contract' ]P E0') ([ contract' ]P E0') (lift contract' E0' E0' (\ ())) where
-      yelp : (f0 : One + (n +[ Contract' ]))(f1 : One + (n +[ Contract' ]))(fl : MayLift (Lift Contract') f0 f1) ->
-             (f0 >>= \ f -> f (T0 , s0 , t0)) ~ (tt , t'0 , T'0) -> (_ * _) >< \ (t'1 , T'1)
-        ->   (t'0 => t'1) * (T'0 => T'1) * (f1 >>= \ f -> f (T1 , s1 , t1)) ~ (tt , t'1 , T'1)
-      yelp (tt , f0) (tt , f1) (ye fl) q with f0 (T0 , s0 , t0) | f1 (T1 , s1 , t1) | fl _ _ (T , s , t)
-      yelp (tt , f0) (tt , f1) (ye fl) r~ | .(tt , _ , _) | .(tt , _) | ye (t' , T') = _ , t' , T' , r~
-
+    -> contract t1 T1 s1 ~ (tt , t'1 , T'1) * (t'0 => t'1) * (T'0 => T'1)
+  contractStablePar {n} {t0}{t1} t {T0}{T1} T {s0}{s1} s {t'0}{T'0} =
+    contractStable (\ m -> _=>_ {n +B m}) (\ m -> _=>_ {n +B m}) _ _ _ _ _ _
+       (PAR ((t :: T) $ s)) t T s t'0 T'0
+  
   develop : forall {n d}(t : Tm n d) -> Tm n d
   develop (! a) = ! a
   develop (s & t) = develop s & develop t
@@ -168,7 +178,7 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
   develop ((t :: T) $ s) with contract t T s | develop t | develop T | develop s
   ... | ff , _ | t' | T' | s' = (t' :: T') $ s'
   ... | tt , _ | t' | T' | s' with contract t' T' s'
-  ... | tt , r , R = r :: R
+  ... | tt , r' , R' = r' :: R'
   ... | ff , <> = (t' :: T') $ s' -- never happens, we know
   develop (e $ s) = develop e $ develop s
   develop (t :: T) = develop t :: develop T
@@ -179,7 +189,7 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
     with contract t T s | develop t | develop T | develop s | developLemma _ _ tr | developLemma _ _ Tr | developLemma _ _ sr
   ... | a | td | Td | sd | th | Th | sh with contractStablePar th Th sh q1
   developLemma .((t :: T) $ s) .(_ :: _) (beta {t} {t'} {T} {T'} {s} {s'} r~ tr Tr sr q1)
-    | .(tt , _ , _) | td | Td | sd | th | Th | sh | (r' , R') , rd , Rd , q2
+    | .(tt , _ , _) | td | Td | sd | th | Th | sh | (r' , R') , q2 , rd , Rd
     rewrite q2 = rd :: Rd
   developLemma .(` (_ :: _)) t1 (upsi t) = developLemma _ _ t
   developLemma .(! a) .(! a) (! a) = ! a
@@ -198,8 +208,8 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
        | contractStablePar t T s
   developLemma ((t0 :: T0) $ s0) (.(_ :: _) $ s1) (e $ s) | ff , <> | td | th | Td | Th | sd | sh | g = (th :: Th) $ sh
   developLemma ((t0 :: T0) $ s0) (.(_ :: _) $ s1) (e $ s) | tt , z | td | th | Td | Th | sd | sh | g with g r~
-  ... | (t'1 , T'1) , r , R , q  with contractStablePar th Th sh q
-  ... | (rd , Rd) , x , y , qd
+  ... | (t'1 , T'1) , q , r , R  with contractStablePar th Th sh q
+  ... | (rd , Rd) , qd , x , y
       rewrite qd = beta q th Th sh qd
   developLemma .(_ :: _) .(_ :: _) (t :: T) = developLemma _ _ t :: developLemma _ _ T
 
@@ -274,47 +284,76 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
       with _ , pr , qr <- parallelogram (star (\ x -> x) stepPar sp) (star (\ x -> x) stepPar sq)
          = _ , starB (\ x -> x) parSteps pr , starB (\ x -> x) parSteps qr
 
+  stepSb : forall {n d}{t0 t1 : Tm n d} -> t0 ~> t1 ->
+           forall {m}(sg : Sb n m) -> (t0 /Tm sg) ~> (t1 /Tm sg)
+  stepSb (beta {t} {T} {s} {r} {R} q) sg = beta (contractStableSb sg t T s r R q)
+  stepSb upsi sg = upsi
+  stepSb (s <& t) sg = stepSb s sg <& _
+  stepSb (s &> t) sg = _ &> stepSb t sg
+  stepSb (^ t) sg = ^ stepSb t (sg +1Sb)
+  stepSb (` e) sg = ` stepSb e sg
+  stepSb (e <$ s) sg = stepSb e sg <$ _
+  stepSb (e $> s) sg = _ $> stepSb s sg
+  stepSb (t <:: T) sg = stepSb t sg <:: _ 
+  stepSb (t ::> T) sg = _ ::> stepSb T sg
 
-KiplingElimBeta : forall {G} -> G :- ElimBeta'
-KiplingElimBeta = mat'
-  (\ { A0 -> \'{-P-} (chk' (! TY) (?' (none SU)) /    -- any type you ask for
-             (  (\' (?'{-P-} (none SU NO)))           -- 0-elim gives you but
-             ,' (\' naw')                        -- it does not compute
-             ))
-     ; A2 -> cons' (mat'
-               (yer TY (cons' (\'{-F-} (chk' (! TY) (?'{-F-} (none SU)) /
-                               (\'{-T-} (chk' (! TY) (?'{-T-} (none SU)) /
-                               (  (\' (! TY))    -- Big If makes types
-                               ,' atom' \ { A0 -> (?'{-F-} (none SU NO))
-                                          ; A1 -> (?'{-T-} (none SU))
-                                          ; _ -> naw' }
-                               )))))))
-               naw'
-               ({-b-} ! A2 ,' (\'{-P-} (chk' (! TY) (?'{-P-} (none SU)) /
-                    cons' (\'{-f-} (chk' (sub' ([] su) (?'{-P-} (none SU NO)) (aye' ,' (! A0 :: ! A2))) (?'{-f-} (none SU)) /
-                           (\'{-t-} (chk' (sub' ([] su) (?'{-P-} (none SU NO NO)) (aye' ,' (! A1 :: ! A2))) (?'{-t-} (none SU)) /
-                             (  (\'{-e-} sub' ([] su) (?'{-P-} (none SU NO NO NO)) (aye' ,' (?'{-e-} (none SU))))
-                             ,' atom' \ { A0 -> (?'{-f-} (none SU NO))
-                                        ; A1 -> (?'{-t-} (none SU))
-                                        ; _ -> naw' }
-                             ))) ))))))
-     ; _ -> naw' })
-  (atom' \ { PI -> cons' (\'{-S-} (abst' (?'{-S-} (none SU)) (\'{-T-} (
-                       (\'{-s-} (chk' (?'{-S-} (none SU NO NO)) (?'{-s-} (none SU)) /
-                         (  (\'{-f-} sub' ([] su) (?'{-T-} (none SU NO NO)) (aye' ,' ((?'{-s-} (none SU NO)) :: (?'{-S-} (none SU NO NO NO)))))
-                         ,' abst' (?'{-S-} (none SU NO NO)) (\'{-t-} sub' ([] su) (?'{-t-} (none SU)) (aye' ,' ((?'{-s-} (none SU NO)) :: (?'{-S-} (none SU NO NO NO)))))
-                         )))))))
-           ; SG -> cons' (\'{-S-} (abst' (?'{-S-} (none SU)) (\'{-T-}
-                       atom' \ { A0 -> (\'{-e-} (?'{-S-} (none SU NO NO)))
-                                    ,' cons' (\'{-s-} (\'{-t-} (?'{-s-} (none SU NO))))
-                               ; A1 -> (\'{-e-} sub' ([] su) (?'{-T-} (none SU NO)) (aye' ,' ((?'{-e-} (none SU)) $ ! A0)))
-                                    ,' cons' (\'{-s-} (\'{-t-} (?'{-t-} (none SU))))
-                               ; _ -> naw' })))
-           ; _ -> naw' })
-  naw'
+  stepTh : forall {n d}{t0 t1 : Tm n d} -> t0 ~> t1 ->
+           forall {m}(th : n <= m) ->
+           (t0 ^Tm th) ~> (t1 ^Tm th)
+  stepTh (beta {t} {T} {s} {r} {R} q) th = beta (contractStableTh th t T s r R q)
+  stepTh upsi th = upsi
+  stepTh (s <& t) th = stepTh s th <& _
+  stepTh (s &> t) th = _ &> stepTh t th
+  stepTh (^ t) th = ^ stepTh t (th su)
+  stepTh (` e) th = ` stepTh e th
+  stepTh (e <$ s) th = stepTh e th <$ _
+  stepTh (e $> s) th = _ $> stepTh s th
+  stepTh (t <:: T) th = stepTh t th <:: _ 
+  stepTh (t ::> T) th = _ ::> stepTh T th
 
-open RED KiplingElimBeta
+  sbSteps : forall {n d}(t : Tm n d) ->
+            forall {m}{sg0 sg1 : Sb n m} ->
+            (sg : forall i -> Star _~>_ (sg0 i) (sg1 i)) ->
+            Star _~>_ (t /Tm sg0) (t /Tm sg1)
+  sbSteps (! a) sg = []
+  sbSteps (s & t) sg = star (_& _) (_<& _) (sbSteps s sg) ++ star (_ &_) (_ &>_) (sbSteps t sg)
+  sbSteps (^ t) sg = star ^_ ^_ (sbSteps t \
+    { (x no) -> star (_^Tm (iota no)) (\ t -> stepTh t (iota no)) (sg x)
+    ; (x su) -> []
+    })
+  sbSteps (` e) sg = star `_ `_ (sbSteps e sg)
+  sbSteps (# x) sg = sg x
+  sbSteps (e $ s) sg = star (_$ _) (_<$ _) (sbSteps e sg) ++ star (_ $_) (_ $>_) (sbSteps s sg)
+  sbSteps (t :: T) sg = star (_:: _) (_<:: _) (sbSteps t sg) ++ star (_ ::_) (_ ::>_) (sbSteps T sg)
 
-testLAPI : forall {n} -> (t : Tm (n su) chk)(S : Tm n chk)(T : Tm (n su) chk)(s : Tm n chk) -> One + (Tm n chk * Tm n chk)
-testLAPI t S T s = contract (^ t) (! PI & S & ^ T) s
-
+  JOY : forall {n}{d}{u0 u1 : Tm n d} -> u0 => u1 ->
+        STABLE (\ {d} m -> Star _~>_) (\ m -> _=>_ {n +B m}) u0 u1
+  STABLE.atomIO (JOY u) [] = r~
+  STABLE.consIO (JOY u) [] = _ , r~ , [] , [] 
+  STABLE.consIO (JOY u) ((s <& t) ,- rs) with STABLE.consIO (JOY u) rs
+  ... | _ , r~ , ss , ts = _ , r~ , (s ,- ss) , ts
+  STABLE.consIO (JOY u) ((s &> t) ,- rs) with STABLE.consIO (JOY u) rs
+  ... | _ , r~ , ss , ts = _ , r~ , ss , (t ,- ts)
+  STABLE.abstIO (JOY u) [] = _ , r~ , []
+  STABLE.abstIO (JOY u) ((^ r) ,- rs) with STABLE.abstIO (JOY u) rs
+  ... | _ , r~ , rs' = _ , r~ , r ,- rs'
+  STABLE.consSu (JOY u) (s & t) = _ , r~ , s , t
+  STABLE.abstSu (JOY u) (^ t) = _ , r~ , t
+  STABLE.loclSb (JOY u) m {x0} [] {sg0}{sg1} sg = sbSteps x0 (help m sg) where
+    help : forall m {sg0 sg1 : Sb m _} ->
+       ((i : [] su <= m) -> Star _~>_ (sg0 i) (sg1 i)) ->
+       (i : [] su <= _ +B (_ +B m)) ->
+       Star _~>_ (locSb m sg0 i) (locSb m sg1 i)
+    help (m su) sg (i no) = help m (\ i -> sg (i no)) i
+    help (m su) sg (i su) = sg (none su)
+    help [] sg i = []
+  STABLE.loclSb (JOY u) m (t ,- ts) sg with STABLE.loclSb (JOY u) m ts sg
+  ... | us = stepSb t _ ,- us
+  STABLE.suIpOp (JOY u) = parSteps
+  STABLE.atomOk (JOY u) a = []
+  STABLE.consOk (JOY u) s t = star (_& _) (_<& _) s ++ star (_ &_) (_ &>_) t
+  STABLE.abstOk (JOY u) t = star ^_ ^_ t
+  STABLE.embdOk (JOY u) e = star `_ `_ e
+  STABLE.loclOk (JOY u) x = []
+  STABLE.elimOk (JOY u) e s = star (_$ _) (_<$ _) e ++ star (_ $_) (_ $>_) s
+  STABLE.radiOk (JOY u) t T = star (_:: _) (_<:: _) t ++ star (_ ::_) (_ ::>_) T
