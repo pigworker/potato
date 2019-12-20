@@ -213,6 +213,33 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
       rewrite qd = beta q th Th sh qd
   developLemma .(_ :: _) .(_ :: _) (t :: T) = developLemma _ _ t :: developLemma _ _ T
 
+  mkBeta : forall {n}{t t' T T' s s' : Tm n chk} -> t => t' -> T => T' -> s => s' ->
+    One ->
+    forall {r r' R R'} ->
+    contract t T s ~ (tt , r , R) ->
+    contract t' T' s' ~ (tt , r' , R') ->
+    ((t :: T) $ s) => (r' :: R')
+  mkBeta t T s <> q0 q1 = beta q0 t T s q1
+
+  developPar : forall {d n}(t : Tm n d) -> t => develop t
+  developPar (! a) = ! a
+  developPar (s & t) = developPar s & developPar t
+  developPar (^ t) = ^ developPar t
+  developPar (` (t :: T)) = upsi (developPar t)
+  developPar (` # x) = ` # x
+  developPar (` e $ s) = ` developPar (e $ s)
+  developPar (# x) = # x
+  developPar ((t :: T) $ s)
+    with develop t | developPar t | develop T | developPar T | develop s | developPar s
+  ... | t' | th | T' | Th | s' | sh with contract t T s | mkBeta th Th sh
+  ... | ff , c0 | _ = (th :: Th) $ sh
+  ... | tt , c0 | be with contract t' T' s'
+  ... | ff , c1 = (th :: Th) $ sh
+  ... | tt , r , R = be <> r~ r~
+  developPar (# x $ s)   = # x $ developPar s
+  developPar (e $ r $ s) = developPar (e $ r) $ developPar s
+  developPar (t :: T) = developPar t :: developPar T
+
   diamond : forall {n d}{s p q : Tm n d} -> s => p -> s => q ->
             _ >< \ r -> p => r * q => r
   diamond sp sq = _ , developLemma _ _ sp , developLemma _ _ sq
@@ -283,6 +310,9 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
   confluence sp sq
       with _ , pr , qr <- parallelogram (star (\ x -> x) stepPar sp) (star (\ x -> x) stepPar sq)
          = _ , starB (\ x -> x) parSteps pr , starB (\ x -> x) parSteps qr
+
+  developSteps : forall {n d}(t : Tm n d) -> Star _~>_ t (develop t)
+  developSteps t = parSteps (developPar t)
 
   stepSb : forall {n d}{t0 t1 : Tm n d} -> t0 ~> t1 ->
            forall {m}(sg : Sb n m) -> (t0 /Tm sg) ~> (t1 /Tm sg)
@@ -357,3 +387,36 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
   STABLE.loclOk (JOY u) x = []
   STABLE.elimOk (JOY u) e s = star (_$ _) (_<$ _) e ++ star (_ $_) (_ $>_) s
   STABLE.radiOk (JOY u) t T = star (_:: _) (_<:: _) t ++ star (_ ::_) (_ ::>_) T
+
+  _&&_ : Two -> Two -> Two
+  tt && b = b
+  ff && b = ff
+  infixr 4 _&&_
+
+  not : Two -> Two
+  not tt = ff
+  not ff = tt
+  
+  done? : forall {n d} -> Tm n d -> Two
+  done? (! a)    = tt
+  done? (s & t)  = done? s && done? t
+  done? (^ t)    = done? t
+  done? (` (t :: T)) = ff
+  done? (` e)        = done? e
+  done? (# x)    = tt
+  done? ((t :: T) $ s) = done? t && done? T && done? s && not (fst (contract t T s))
+  done? (e $ s)  = done? e && done? s
+  done? (t :: T) = done? t && done? T
+
+  gasRed : Nat -> forall {n d} -> Tm n d -> Tm n d
+  gasRed [] t = t
+  gasRed (z su) t with done? t
+  ... | tt = t
+  ... | ff = gasRed z (develop t)
+
+  gasRedSound : forall z {n d} (t : Tm n d) -> Star _~>_ t (gasRed z t)
+  gasRedSound (z su) t with done? t
+  gasRedSound (z su) t | ff with develop t | developSteps t
+  ... | t' | r = r ++ gasRedSound z t'
+  gasRedSound (z su) t | tt = []
+  gasRedSound [] t = []
