@@ -75,3 +75,13 @@ open RED KiplingElimBeta
 testLAPI : forall {n} -> (t : Tm (n su) chk)(S : Tm n chk)(T : Tm (n su) chk)(s : Tm n chk) -> One + (Tm n chk * Tm n chk)
 testLAPI t S T s = contract (^ t) (! PI & S & ^ T) s
 
+open RULES KiplingFormIntro KiplingElimBeta
+
+open GASCHECKER
+
+test0 : Go Zero One
+test0 = typeCheck [] {[]} (\ ()) (! TY) (! PI & ! A2 & ^ ! A2)
+
+test1 : Go Zero One
+test1 = typeCheck [] {[]} (\ ()) (! PI & ! A2 & ^ ! A2)
+  (^ ` # (none su) $ ((^ ! A2) & ! A1 & ! A0))

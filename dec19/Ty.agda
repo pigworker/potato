@@ -131,3 +131,5 @@ module RULES
     typeCheck G T t = typeCheckRec G T t (tmRec t)
     synthType : forall {n} -> Cx n -> Tm n syn -> Go Zero (Tm n chk)
     synthType G e = synthTypeRec G e (tmRec e)
+
+  module GASCHECKER (z : Nat) = CHECKER (\ G -> gasRed z) (\ G -> gasRedSound z)
