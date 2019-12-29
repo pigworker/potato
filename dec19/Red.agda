@@ -16,7 +16,7 @@ ElimBeta' = Chk' [] any                    -- target type
         ->' (Syn' [] ->' Chk' [] any)      -- result type in the abstract
          *' (Chk' [] any ->' Chk' [] any)  -- result value, concretely
 
-module RED (eb' : forall {G} -> G :- ElimBeta') where
+module RED (eb' : [] :- ElimBeta') where
 
   Contract' : Ty'
   Contract' = Chk' [] any      -- target type
@@ -31,7 +31,7 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
             (?'{-t-} (none SU NO NO)))
       ,' ((?'{-R-} (none SU NO)) $'
             ((?'{-t-} (none SU NO NO)) :: (?'{-T-} (none SU NO NO NO NO)))))))
-    $' ((eb' $' (?'{-T-} (none SU NO NO))) $' (?'{-s-} (none SU NO)))))))
+    $' ((clo' eb' $' (?'{-T-} (none SU NO NO))) $' (?'{-s-} (none SU NO)))))))
 
   contract : forall {n}
     -> Tm n chk {-t-}
@@ -388,15 +388,6 @@ module RED (eb' : forall {G} -> G :- ElimBeta') where
   STABLE.elimOk (JOY u) e s = star (_$ _) (_<$ _) e ++ star (_ $_) (_ $>_) s
   STABLE.radiOk (JOY u) t T = star (_:: _) (_<:: _) t ++ star (_ ::_) (_ ::>_) T
 
-  _&&_ : Two -> Two -> Two
-  tt && b = b
-  ff && b = ff
-  infixr 4 _&&_
-
-  not : Two -> Two
-  not tt = ff
-  not ff = tt
-  
   done? : forall {n d} -> Tm n d -> Two
   done? (! a)    = tt
   done? (s & t)  = done? s && done? t

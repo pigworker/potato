@@ -1,0 +1,153 @@
+\documentclass[acmsmall, screen, review]{acmart}
+
+\usepackage{upgreek}
+\usepackage{pig}
+
+\newcommand{\ms}{\textsc{MetaSpud}}
+\begin{document}
+\title{Potatoes and Parametricity}
+\author{sssh, it's a secret}
+\maketitle
+
+When ignorance is bliss, 'tis folly to be wise. This paper is about
+the formal metatheory of dependent type systems, presented \emph{bidirectionally},
+which introduces a pathetic programming language, expressly for the
+purpose of maintaining useful cluelessness by brute force. \ms{} is a kind of
+machine code for components of type systems, crafted carefully to
+ensure that key metatheoretical properties come as \emph{theorems for free}.
+If you can't do it right, then you can't do it at all.
+
+\ms{} is implemented in Agda, exploiting the fact that Agda's typechecker
+executes programs, the \ms{} interpreter in this case, to determine the
+meanings of types. \ms's parametricity theorem, proven in Agda, is the workhorse
+of a library of metatheoretical tools.
+
+We work with a class of type theories, all of which share a common pair of syntaxes:
+\newcommand{\at}[1]{\mathsf{#1}}
+\newcommand{\cn}[2]{#1, #2}
+\newcommand{\ab}[2]{#1. #2}
+\newcommand{\el}[1]{\underline{#1}}
+\newcommand{\ra}[2]{#1 : #2}
+\[\begin{array}[t]{rrl}
+    \textbf{constructions}\;
+    R,S,T,r,s,t & ::= & \at a \\
+                &   | & \cn s t \\
+                &   | & \ab x t \\
+                &   | & \el e \\
+  \end{array}
+  \qquad\qquad
+  \textbf{computations}\;
+  \begin{array}[t]{rrl}
+    e,f & ::= & x \\
+        &   | & e\:s \\
+        &   | & \ra t T \\
+  \end{array}
+\]
+The \textbf{constructions} are made of the raw lumpen first-order inductive stuff
+of values and types---the potatoes
+of this piece---atoms $\at a$, pairs $\cn s t$, abstractions $\ab x t$, but they
+also embed the \textbf{computations} $\el e$ which have not yet reached a value,
+either because they are variables $x$ as yet unknown, or because they are eliminations
+$e\:s$ as yet undone. The computations, in turn, embed the constructions, but only in
+the form of \emph{radicals} $\ra t T$, which are values ready to compute, empowered
+by a type annotation.
+
+\newcommand{\TY}{\star}
+Atoms are symbols. They can be any set with a decidable equality. There must be one
+particular atom, $\TY$, whose job is to be the type of types. Pairs nest to the
+right and bind more tightly
+than abstractions. Radicals are the loosest of all, so that
+\[
+  \ra{\ab x t}{\cn{\at \Uppi}{\cn S {\ab x T}}}
+  \qquad
+  \textrm{means}
+  \qquad
+  \ra{(\ab x t)}{(\cn{\at \Uppi}{(\cn S {(\ab x T)})})}  
+\]
+In real life, abstractions are implemented using de Bruijn variables in a well
+scoped representation, but let us be informal in print and write names.
+
+Contexts $\Gamma$ assign types to variables $x:S$, but is our careful habit not
+to talk about whole contexts in typing rules when we can act on them by local
+extension. We trade in judgments $J$ of the forms
+\begin{description}
+\item[type checking] $T\ni t$ for constructions
+\item[type synthesis] $e\in S$ for computations
+\item[single-step reduction] $t\leadsto t'$ and $e\leadsto e'$ for both
+\item[context lookup] $\dashv x:S$
+\item[local extension] $x:S\vdash J$
+\end{description}
+
+The following rules for type checking and synthesis are fixed for all systems.
+\[\begin{array}[t]{rc}
+    \textbf{pre-reduce} &
+                   \Rule{T\leadsto T'\quad T'\ni t}
+                   {T\ni t} \\
+    \textbf{embed} & \Rule{e\in S\quad S=T}
+                   {T\ni \el e}
+    \end{array}
+\qquad
+  \begin{array}[t]{rc}
+    \textbf{post-reduce} &
+    \Rule{e\in S\quad S\leadsto S'}
+  {e\in S'}\\
+    \textbf{variable} &
+  \Rule{\dashv x : S}
+  {x\in S}
+    \\
+    \textbf{radical} &
+  \Rule{\TY\ni T \quad T\ni t}
+  {\ra t T\in T}
+  \end{array}
+\]
+
+Likewise, single step reduction includes the $\upsilon$-steps which
+strip the type annotation from a value once its computation is done,
+and is closed under all subterm contexts.
+\[
+  \begin{array}{rc}
+    \textbf{upsilon} &
+                       \Axiom{\el{\ra tT} \leadsto t }\\
+    &
+    \Rule{s\leadsto s'}
+    {\cn st \leadsto \cn s{t'}} \quad
+    \Rule{t\leadsto t'}
+    {\cn st \leadsto \cn s{t'}} \quad
+    \Rule{t\leadsto t'}
+    {\ab xt \leadsto \ab x{t'}} \\
+    &\Rule{e\leadsto e'}
+    {e\:s\leadsto e'\:s} \quad
+    \Rule{s\leadsto s'}
+    {e\:s\leadsto e'\:s} \quad
+    \Rule{t\leadsto t'}
+    {\ra tT \leadsto \ra{t'}T} \quad
+    \Rule{T\leadsto T'}
+    {\ra tT \leadsto \ra{t'}T}
+    \end{array}
+\]
+
+Beyond this basic setup, however, we make no fixed choices about which constructions are
+classified by which other constructions, or about how eliminated radicals
+should compute by $\beta$-rules of the form
+\[(\ra tT)\:s \leadsto \ra rR\]
+You are free to craft these rules however you like, as long as what you like are potatoes.
+We equip you with \ms, a programming language for implementing typing and reduction rules,
+with limited power to inspect the syntax---we inspect only the outer atoms-pairs-abstractions structure of terms. \ms{} provides enough power for sensible rules like these, for functions:
+\[\begin{array}{c}
+  \Rule{\TY\ni S\quad x:S\vdash\TY\ni T}
+  {\TY\ni \cn{\at\Uppi}{\cn S{\ab x T}}}
+  \qquad
+  \Rule{x:S\vdash T\ni t}
+   {\cn{\at\Uppi}{\cn S{\ab x T}} \ni \ab xt}
+   \qquad
+   \Rule{e\in \cn{\at\Uppi}{\cn S{\ab x T}} \quad S\ni s}
+   {e\:s\in T[\ra sS/x]}
+   \\
+   \Axiom{(\ra{\ab x t}{\cn{\at\Uppi}{\cn S{\ab x T}}})\:s \leadsto
+    (\ra tT)[\ra sS/x]}
+    \end{array}
+\]
+However, we remove from you the power to inspect parts of terms whose structure can be altered by substitution or by reduction. We pay you for keeping your nose out by giving you \emph{theorems for free}, e.g., that the typing rules are stable under substitution and that reduction is confluent.
+
+  
+\end{document}

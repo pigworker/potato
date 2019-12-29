@@ -7,7 +7,7 @@ open import Meta
 open import Red
 open import Ty
 
-KiplingFormIntro : forall {G} -> G :- FormIntro'
+KiplingFormIntro : [] :- FormIntro'
 KiplingFormIntro = unc' (mat'
   (\ { TY -> mat'
          (\ { A0 -> aye' ; A1 -> aye' ; A2 -> aye' ; _ -> naw' })
@@ -32,7 +32,7 @@ KiplingFormIntro = unc' (mat'
            ; _ -> naw' })
   naw')
 
-KiplingElimBeta : forall {G} -> G :- ElimBeta'
+KiplingElimBeta : [] :- ElimBeta'
 KiplingElimBeta = mat'
   (\ { A0 -> chk' (! TY) (\'{-P-}             -- any type you ask for
              (  (\' (?'{-P-} (none SU NO)))   -- 0-elim gives you but

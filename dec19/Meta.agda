@@ -168,6 +168,10 @@ data _:-_ (G : Bwd Ty') : Ty' -> Set where
       -> G :- Chk' n any ->' T        -- how to continue with the subterm that you now trust
       -> G :- Chk' n (gdd tt) ->' T   -- what to do with a subterm of the subject
 
+  clo' : forall {T}
+      -> [] :- T
+      -> G  :- T
+
   !_   : {n : Nat} -> Atom -> G :- Chk' n any
   _&_  : {n : Nat} -> G :- Chk' n any -> G :- Chk' n any -> G :- Chk' n any
   ^_   : {n : Nat} -> G :- Chk' (n su) any -> G :- Chk' n any
@@ -240,6 +244,7 @@ module _ {un ud}(u : Tm un ud)  where
   sem' ga (sub' m t sg) = (\ t sg -> t /Tm locSb m (vecSb m sg)) <$> sem' ga t <*> sem' ga sg
   sem' ga (chk' T k) = return \ tg@(t , _) -> sem' ga T >>= \ T -> sem' ga k >>= \ k ->
     check T tg >>= \ _ -> k t
+  sem' ga (clo' t) = sem' E0' t
   sem' ga (! a) = return (! a)
   sem' ga (ps & pt) = _&_ <$> sem' ga ps <*> sem' ga pt
   sem' ga (^ p) = ^_ <$> sem' ga p
@@ -435,6 +440,7 @@ module _ {un0 un1 : Nat}
       stable ga T >>>= \ T ->
       stable ga k >>>= \ k ->
       ((r~ , T , t) ,- []) -:>>>= k (suIpOp (fst t))
+    stable ga (clo' t) = stable (\ ()) t
     stable ga (! a)    = [] -: atomOk a
     stable ga (s & t)  = consOk <$$> stable ga s <**> stable ga t
     stable ga (^ t)    = abstOk <$$> stable ga t

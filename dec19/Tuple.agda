@@ -61,3 +61,13 @@ _++R_ : forall {X Y}{R : X -> Y -> Set}
 
 id : forall {l}{X : Set l} -> X -> X
 id x = x
+
+_&&_ : Two -> Two -> Two
+tt && b = b
+ff && b = ff
+infixr 4 _&&_
+
+not : Two -> Two
+not tt = ff
+not ff = tt
+  
